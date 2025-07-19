@@ -1,0 +1,432 @@
+import 'dart:convert';
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:toast/toast.dart';
+import '../network/Utils.dart';
+import '../network/api_dialog.dart';
+import '../network/api_helper.dart';
+import '../utils/app_theme.dart';
+import 'package:intl/intl.dart';
+
+class QDAppliedCorrectionScreen extends StatefulWidget{
+  _qdAppliedCorrectionScreen createState()=>_qdAppliedCorrectionScreen();
+}
+class _qdAppliedCorrectionScreen extends State<QDAppliedCorrectionScreen>{
+  bool isLoading=false;
+  late var userIdStr;
+  late var fullNameStr;
+  late var designationStr;
+  late var token;
+  late var empId;
+  late var baseUrl;
+  List<dynamic> leavesList=[];
+  List<dynamic>allList=[];
+
+  var filterList=['All','Pending','Approved','Rejected'];
+  String filterDropDown = 'All';
+  @override
+  Widget build(BuildContext context) {
+    ToastContext().init(context);
+    return Scaffold(
+        appBar: AppBar  (
+          leading: IconButton(
+            icon: const Icon(Icons.keyboard_arrow_left_outlined, color: Colors.black,size: 35,),
+            onPressed: () => {
+              Navigator.of(context).pop()
+            },
+          ),
+          backgroundColor: AppTheme.at_details_header,
+          title: const Text(
+            "Applied Corrections",
+            style: TextStyle(
+                fontSize: 18.5,
+                fontWeight: FontWeight.bold,
+                color: Colors.black),
+          ),
+          /*actions: [IconButton(onPressed: (){
+              _showAlertDialog();
+
+            }, icon: SvgPicture.asset("assets/logout.svg"))] ,*/
+          centerTitle: true,
+        ),
+        backgroundColor: Colors.white,
+        body: isLoading?SizedBox():
+        SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: 10,),
+              Padding(padding: EdgeInsets.symmetric(horizontal: 10),
+                child: Text("Show Corrections",
+                  style: TextStyle(fontSize: 14.5,
+                      color: AppTheme.themeColor,
+                      fontWeight: FontWeight.w500),),),
+              Padding(padding: EdgeInsets.symmetric(horizontal: 10),
+                child: Container(
+                  width: double.infinity,
+                  height: 45,
+                  padding: const EdgeInsets.only(left: 5,right: 5,top: 5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.rectangle,
+                    border: Border.all(color: AppTheme.greyColor,width: 2.0),
+
+                  ),
+                  child: DropdownButton(
+                    items: filterList.map((String items) {return DropdownMenuItem(
+                      value: items,
+                      child: Text(items),
+                    );}).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        filterDropDown = newValue!;
+                      });
+                      _filterData();
+                    },
+                    value: filterDropDown,
+                    icon: Icon(Icons.keyboard_arrow_down,color: AppTheme.themeColor,size: 15,),
+                    isExpanded: true,
+                    underline: SizedBox(),
+                  ),
+                ),),
+              SizedBox(height: 10,),
+              leavesList.length==0?Align(alignment: Alignment.center,child: Text("No Attendance Correction  Available",style: TextStyle(fontSize: 17.5,color: AppTheme.orangeColor,fontWeight: FontWeight.w900),),):
+              ListView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: leavesList.length,
+                  itemBuilder: (BuildContext cntx, int index){
+
+                    String appliedFor="";
+                    String actualInTime="";
+                    String actualOutTime="";
+                    String correctInTime="";
+                    String correctOutTime="";
+                    String reason="";
+                    var isApproved=0;
+                    var isRejected=0;
+                    String statusStr="";
+
+
+
+
+
+                    String dStr="";
+                    var backColor=AppTheme.task_Done_back;
+                    var textColor= AppTheme.task_Done_text;
+
+
+
+                    String leaveId=leavesList[index]['id'].toString();
+
+                    String reasonCheckIn="";
+                    String reasonCheckOut="";
+
+                    if(leavesList[index]['requested_check_in_reason']!=null){
+                      reasonCheckIn=leavesList[index]['requested_check_in_reason'].toString();
+                    }
+                    if(leavesList[index]['requested_check_out_reason']!=null){
+                      reasonCheckOut=leavesList[index]['requested_check_out_reason'].toString();
+                    }
+
+
+
+
+
+                    if(leavesList[index]['correction_request_raised_at']!=null){
+                      var deliveryTime=DateTime.parse(leavesList[index]['correction_request_raised_at']);
+                      var delLocal=deliveryTime.toLocal();
+                      dStr=DateFormat('MMM d,yyyy').format(delLocal);
+                    }
+                    if(leavesList[index]['date']!=null){
+                      appliedFor=leavesList[index]['date'];
+                    }
+
+
+
+                    if(leavesList[index]['actual_check_in_time']!=null && leavesList[index]['actual_check_out_time']!=null){
+                      actualInTime=leavesList[index]['actual_check_in_time'];
+                      actualOutTime=leavesList[index]['actual_check_out_time'];
+                    }
+                    if(leavesList[index]['corrected_check_in_time']!=null && leavesList[index]['corrected_check_out_time']!=null){
+                      correctInTime=leavesList[index]['corrected_check_in_time'];
+                      correctOutTime=leavesList[index]['corrected_check_out_time'];
+                    }
+                    if(leavesList[index]['correction_reason']!=null){
+                      reason=leavesList[index]['correction_reason'].toString();
+                    }
+
+
+
+
+                    if(leavesList[index]['is_approved']!=null){
+                      isApproved=leavesList[index]['is_approved'];
+                    }
+                    if(leavesList[index]['is_rejected']!=null){
+                      isRejected=leavesList[index]['is_rejected'];
+                    }
+
+                    if(isApproved==1){
+                      statusStr="Approved";
+                      backColor=AppTheme.task_Done_back;
+                      textColor=AppTheme.task_Done_text;
+
+                    }
+                    else if(isRejected==1){
+                      statusStr="Rejected";
+                      if(leavesList[index]['reject_reason']!=null){
+                        reason=leavesList[index]['reject_reason'];
+                      }
+                      backColor=AppTheme.task_Rejected_back;
+                      textColor=AppTheme.task_Rejected_text;
+                    }
+                    else{
+                      statusStr="Pending";
+                      backColor=AppTheme.task_progress_back;
+                      textColor=AppTheme.task_progress_text;
+                    }
+
+
+                    return Stack(children: [
+                      Padding(
+                        padding: const EdgeInsets.all(15),
+                        child: Column(
+
+                          children: [
+                            const SizedBox(height: 10,),
+                            Container(
+
+                              decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(4),
+                                  color: Colors.white,
+                                  border: Border.all(color: AppTheme.orangeColor,width: 1.0)
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.only(left: 7,right: 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 15,),
+                                    Row(
+                                      children: [
+                                        Expanded(child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text("Check In Time",
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(color: Colors.black,fontSize: 14,fontWeight: FontWeight.w500),),
+                                            SizedBox(height: 5,),
+                                            Text(correctInTime,
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(color: AppTheme.themeColor,fontSize: 14,fontWeight: FontWeight.w500),),
+                                          ],
+                                        )),
+                                        SizedBox(width: 5,),
+                                        Expanded(child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text("Check Out Time",
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(color: Colors.black,fontSize: 14,fontWeight: FontWeight.w500),),
+                                            SizedBox(height: 5,),
+                                            Text(correctOutTime,
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(color: AppTheme.themeColor,fontSize: 14,fontWeight: FontWeight.w500),),
+                                          ],
+                                        )),
+                                      ],
+                                    ),
+
+
+
+
+                                    SizedBox(height: 10,),
+                                    Row(
+                                      children: [
+                                        SvgPicture.asset('assets/at_calendar.svg',height: 21,width: 18,),
+                                        SizedBox(width: 5,),
+                                        Text(appliedFor,style: TextStyle(fontSize: 16,fontWeight: FontWeight.w500,color: Colors.black),),
+                                        Expanded(child: Text("Applied On:- $dStr",
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(fontSize: 16,fontWeight: FontWeight.w500,color: AppTheme.themeColor),)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10,),
+
+
+
+                                    Text("Check In Reason",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: Colors.black,fontSize: 14,fontWeight: FontWeight.w500),),
+                                    SizedBox(height: 5,),
+                                    Text(reasonCheckIn,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: AppTheme.leave_type,fontSize: 14,fontWeight: FontWeight.w500),),
+
+                                    const SizedBox(height: 10,),
+
+                                    Text("Check Out Reason",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: Colors.black,fontSize: 14,fontWeight: FontWeight.w500),),
+                                    SizedBox(height: 5,),
+                                    Text(reasonCheckOut,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(color: AppTheme.leave_type,fontSize: 14,fontWeight: FontWeight.w500),),
+
+                                    const SizedBox(height: 10,),
+
+                                  ],
+                                ),
+                              ),
+
+                            ),
+                            const SizedBox(height: 10,),
+                          ],
+
+                        ) ,),
+                      Positioned(
+                        right: 15,
+                        top: 10,
+                        child:  Container(
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(1),
+                              color: backColor),
+                          width: 80,
+                          height: 30,
+                          child: Align(
+                            alignment: Alignment.center,
+                            child: Text(statusStr,
+                                style: TextStyle(
+                                    color: textColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12)),
+                          ),
+
+                        ),),
+                    ],);
+
+                  }
+              ),
+            ],
+          ),
+        )
+
+    );
+  }
+
+  _filterData(){
+    APIDialog.showAlertDialog(context, "Please Wait....");
+    leavesList.clear();
+    if(filterDropDown=="All"){
+      leavesList.addAll(allList);
+    }
+    else if(filterDropDown=="Pending"){
+      for(int i=0;i<allList.length;i++){
+        var isApproved=0;
+        var isRejected=0;
+        if(allList[i]['is_approved']!=null){
+          isApproved=allList[i]['is_approved'];
+        }
+        if(allList[i]['is_rejected']!=null){
+          isRejected=allList[i]['is_rejected'];
+        }
+        if(isApproved!=1&&isRejected!=1){
+          leavesList.add(allList[i]);
+        }
+      }
+    }
+    else if(filterDropDown=="Approved"){
+      for(int i=0;i<allList.length;i++){
+        var isApproved=0;
+        var isRejected=0;
+        if(allList[i]['is_approved']!=null){
+          isApproved=allList[i]['is_approved'];
+        }
+        if(allList[i]['is_rejected']!=null){
+          isRejected=allList[i]['is_rejected'];
+        }
+        if(isApproved==1){
+          leavesList.add(allList[i]);
+        }
+      }
+    }
+    else if(filterDropDown=="Rejected"){
+      for(int i=0;i<allList.length;i++){
+        var isApproved=0;
+        var isRejected=0;
+        if(allList[i]['is_approved']!=null){
+          isApproved=allList[i]['is_approved'];
+        }
+        if(allList[i]['is_rejected']!=null){
+          isRejected=allList[i]['is_rejected'];
+        }
+        if(isRejected==1){
+          leavesList.add(allList[i]);
+        }
+      }
+    }
+    Navigator.of(context).pop();
+    setState(() {
+
+    });
+
+  }
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 0), () {
+      _getDashboardData();
+    });
+  }
+  _getDashboardData() async {
+    setState(() {
+      isLoading=true;
+    });
+    APIDialog.showAlertDialog(context, 'Please Wait...');
+    userIdStr=await MyUtils.getSharedPreferences("user_id");
+    fullNameStr=await MyUtils.getSharedPreferences("full_name");
+    token=await MyUtils.getSharedPreferences("token");
+    designationStr=await MyUtils.getSharedPreferences("designation");
+    empId=await MyUtils.getSharedPreferences("emp_id");
+    baseUrl=await MyUtils.getSharedPreferences("base_url");
+    Navigator.of(context).pop();
+    getLeaveList();
+  }
+  getLeaveList() async {
+
+    setState(() {
+      isLoading=true;
+    });
+    APIDialog.showAlertDialog(context, 'Please Wait...');
+    ApiBaseHelper helper = ApiBaseHelper();
+    var response = await helper.getWithToken(baseUrl, 'attendance_management/getEmpAppliedApplication?type=attendance_correction&request_for=applied', token, context);
+    Navigator.pop(context);
+    var responseJSON = json.decode(response.body);
+    print(responseJSON);
+    if (responseJSON['error'] == false) {
+      allList.clear();
+      leavesList.clear();
+      allList=responseJSON['data'];
+      leavesList.addAll(allList);
+      filterDropDown = 'All';
+      setState(() {
+        isLoading=false;
+      });
+    }
+    else {
+      Toast.show(responseJSON['message'],
+          duration: Toast.lengthLong,
+          gravity: Toast.bottom,
+          backgroundColor: Colors.red);
+      setState(() {
+        isLoading=false;
+      });
+      _finishScreens();
+    }
+  }
+
+  _finishScreens(){
+    Navigator.pop(context);
+  }
+}
